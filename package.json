@@ -78,6 +78,9 @@
     "testonly": "jest && yarn workspace codemirror-graphql run test",
     "tsc": "tsc --build"
   },
+  "dependencies": {
+    "typescript": "^4.6.3"
+  },
   "devDependencies": {
     "@babel/cli": "^7.17.6",
     "@babel/core": "^7.17.8",
@@ -140,6 +143,6 @@
     "wsrun": "^5.2.4"
   },
   "resolutions": {
-    "graphql-config": "4.3.0"
+    "graphql-config": "4.3.6"
   }
 }
