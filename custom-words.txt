@@ -61,7 +61,9 @@ wincent
 yoshiakis
 Leko
 LekoArts
-
+jridgewell
+cspotcode
+smekalka
 
 // packages and tools
 argparse
@@ -111,7 +113,7 @@ wsrun
 lezer
 buildhelper
 sonarjs
-
+extremum
 
 // identifiers used in code and configs
 acmerc
@@ -170,6 +172,7 @@ squirrelly
 socker
 streamable
 subword
+tempfile
 testid
 testonly
 typeof

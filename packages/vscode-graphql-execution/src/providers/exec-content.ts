@@ -9,13 +9,19 @@ import {
   window,
   WebviewPanel,
   WorkspaceFolder,
+  WorkspaceConfiguration,
 } from 'vscode';
+import * as fs from 'fs';
+import tempfile from 'tempfile';
 import type { ExtractedTemplateLiteral } from '../helpers/source';
 import { loadConfig, GraphQLProjectConfig } from 'graphql-config';
 import { visit, VariableDefinitionNode } from 'graphql';
 import { NetworkHelper } from '../helpers/network';
 import { SourceHelper, GraphQLScalarTSType } from '../helpers/source';
-import type { Endpoints, Endpoint } from 'graphql-config/extensions/endpoints';
+import type {
+  Endpoints,
+  Endpoint,
+} from 'graphql-config/typings/extensions/endpoints';
 
 export type UserVariables = { [key: string]: GraphQLScalarTSType };
 
@@ -73,7 +79,7 @@ export class GraphQLContentProvider implements TextDocumentContentProvider {
 
   async getEndpointName(endpointNames: string[]) {
     // Endpoints extensions docs say that at least "default" will be there
-    let [endpointName] = endpointNames;
+    let endpointName = endpointNames[0];
     if (endpointNames.length > 1) {
       const pickedValue = await window.showQuickPick(endpointNames, {
         canPickMany: false,
@@ -93,6 +99,7 @@ export class GraphQLContentProvider implements TextDocumentContentProvider {
     outputChannel: OutputChannel,
     literal: ExtractedTemplateLiteral,
     panel: WebviewPanel,
+    config: WorkspaceConfiguration,
   ) {
     this.uri = uri;
     this.outputChannel = outputChannel;
@@ -100,12 +107,14 @@ export class GraphQLContentProvider implements TextDocumentContentProvider {
     this.networkHelper = new NetworkHelper(
       this.outputChannel,
       this.sourceHelper,
+      config,
     );
     this.panel = panel;
     this.rootDir = workspace.getWorkspaceFolder(Uri.file(literal.uri));
     this.literal = literal;
     this.panel.webview.options = {
       enableScripts: true,
+      enableCommandUris: true,
     };
 
     this.loadProvider()
@@ -203,7 +212,24 @@ export class GraphQLContentProvider implements TextDocumentContentProvider {
           if (operation === 'subscription') {
             this.html = `<pre>${data}</pre>` + this.html;
           } else {
-            this.html += `<pre>${data}</pre>`;
+            const customCommand = workspace.getConfiguration(
+              'vscode-graphql-execution.result.customCommand',
+            );
+            const commandId = customCommand.get<string>('id');
+            if (commandId) {
+              const commandCaption = customCommand.get<string>(
+                'caption',
+                commandId,
+              );
+              const fileName = tempfile('.json');
+              fs.writeFileSync(fileName, data);
+              const commandLink = `<p><a href="command:${commandId}?${encodeURIComponent(
+                JSON.stringify(fileName),
+              )}">${commandCaption}</a></p>`;
+              this.html += `${commandLink}<pre>${data}</pre>`;
+            } else {
+              this.html += `<pre>${data}</pre>`;
+            }
           }
           this.update(this.uri);
           this.updatePanel();

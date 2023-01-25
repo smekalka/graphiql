@@ -1,16 +1,18 @@
 import { visit, OperationTypeNode, GraphQLError } from 'graphql';
+
 import { gql } from 'graphql-tag';
 import { fetch } from '@whatwg-node/fetch';
 import { Agent } from 'https';
-import * as ws from 'ws';
-// eslint-disable-next-line import/no-extraneous-dependencies
-import { pipe, subscribe } from 'wonka';
+import { WebSocket } from 'ws';
+import { pipe, subscribe, fromObservable } from 'wonka';
 
 // eslint-disable-next-line import/no-unresolved
-import { Endpoint } from 'graphql-config/extensions/endpoints';
-import { OutputChannel, workspace } from 'vscode';
+import { Endpoint } from 'graphql-config/typings/extensions/endpoints';
+import { OutputChannel, workspace, WorkspaceConfiguration } from 'vscode';
 import { GraphQLProjectConfig } from 'graphql-config';
 import { createClient as createWSClient, OperationResult } from 'graphql-ws';
+import { SubscriptionClient } from '@shopify/legacy-apollo-subscriptions-transport';
+
 import {
   CombinedError,
   createClient,
@@ -27,13 +29,46 @@ import {
 import { UserVariables } from '../providers/exec-content';
 
 export class NetworkHelper {
+  private useLegacySubscriptionsClient: boolean;
   private outputChannel: OutputChannel;
   private sourceHelper: SourceHelper;
 
-  constructor(outputChannel: OutputChannel, sourceHelper: SourceHelper) {
+  constructor(
+    outputChannel: OutputChannel,
+    sourceHelper: SourceHelper,
+    config: WorkspaceConfiguration,
+  ) {
     this.outputChannel = outputChannel;
     this.sourceHelper = sourceHelper;
+    this.useLegacySubscriptionsClient = config.get(
+      'useLegacySubscriptionsClient',
+      false,
+    );
   }
+
+  private buildSubscriptionUrl(endpoint: Endpoint) {
+    let wsEndpointURL = endpoint.url.replace(/^http/, 'ws');
+    if (this.useLegacySubscriptionsClient) {
+      wsEndpointURL = wsEndpointURL.replace(/\/graphql\/?$/, '/subscriptions');
+    }
+
+    const params: string[] = [];
+    for (const header in endpoint.headers) {
+      const headerLower = header.toLowerCase();
+      const values = endpoint.headers[header];
+      const value = Array.isArray(values) ? values[0] : values;
+      if (headerLower === 'authorization') {
+        const segments = value.split(/\s+/);
+        if (segments[0] === 'Bearer') {
+          params.push(`access_token=${segments[1]}`);
+        }
+      } else if (headerLower.startsWith('x-')) {
+        params.push(`${header.substring(2).replaceAll('-', '_')}=${value}`);
+      }
+    }
+    return wsEndpointURL + (params.length > 0 ? '?' + params.join('&') : '');
+  }
+
   private buildClient({
     operation,
     endpoint,
@@ -49,12 +84,13 @@ export class NetworkHelper {
     const agent = new Agent({ rejectUnauthorized });
 
     const exchanges = [...defaultExchanges];
+
     if (operation === 'subscription') {
-      const wsEndpointURL = endpoint.url.replace(/^http/, 'ws');
+      const url = this.buildSubscriptionUrl(endpoint);
       const wsClient = createWSClient({
-        url: wsEndpointURL,
+        url,
         connectionAckWaitTimeout: 3000,
-        webSocketImpl: ws,
+        webSocketImpl: WebSocket,
       });
       exchanges.push(
         subscriptionExchange({
@@ -99,7 +135,7 @@ export class NetworkHelper {
           );
         }
         if (error.networkError) {
-          cb(error.networkError.toString(), operation);
+          cb(error.networkError.message, operation);
         }
       }
     };
@@ -147,26 +183,50 @@ export class NetworkHelper {
           `NetworkHelper: endpoint: ${endpoint.url}`,
         );
         try {
-          const urqlClient = this.buildClient({
-            operation,
-            endpoint,
-            updateCallback,
-          });
-          if (operation === 'subscription') {
-            pipe(
-              urqlClient.subscription(parsedOperation, variables),
-              subscribe(subscriber),
+          if (
+            operation === 'subscription' &&
+            this.useLegacySubscriptionsClient
+          ) {
+            const subClient = new SubscriptionClient(
+              this.buildSubscriptionUrl(endpoint),
+              { reconnect: true },
+              WebSocket,
             );
-          } else if (operation === 'query') {
+            subClient.onError(err =>
+              updateCallback(`Error: ${err.message}`, operation),
+            );
+            const sub = subClient.request({
+              query: literal.content,
+              variables,
+            });
             pipe(
-              urqlClient.query(parsedOperation, variables),
-              subscribe(subscriber),
+              fromObservable(sub),
+              subscribe(result =>
+                updateCallback(JSON.stringify(result, null, 2), operation),
+              ),
             );
           } else {
-            pipe(
-              urqlClient.mutation(parsedOperation, variables),
-              subscribe(subscriber),
-            );
+            const urqlClient = this.buildClient({
+              operation,
+              endpoint,
+              updateCallback,
+            });
+            if (operation === 'subscription') {
+              pipe(
+                urqlClient.subscription(parsedOperation, variables),
+                subscribe(subscriber),
+              );
+            } else if (operation === 'query') {
+              pipe(
+                urqlClient.query(parsedOperation, variables),
+                subscribe(subscriber),
+              );
+            } else {
+              pipe(
+                urqlClient.mutation(parsedOperation, variables),
+                subscribe(subscriber),
+              );
+            }
           }
         } catch (err) {
           this.outputChannel.appendLine(`error executing operation:\n${err}`);

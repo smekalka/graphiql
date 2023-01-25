@@ -1,20 +1,24 @@
 {
-  "name": "vscode-graphql-execution",
+  "name": "extremum-graphql-execution",
   "version": "0.1.7",
-  "displayName": "GraphQL: Inline Operation Execution",
-  "description": "Execute graphql operations from your code (revived!)",
-  "publisher": "GraphQL",
+  "displayName": "GraphQL: Inline Operation Execution (Extremum)",
+  "description": "Execute graphql operations from your code. Forked from https://github.com/graphql/graphiql",
+  "publisher": "Smekalka",
   "license": "MIT",
   "private": true,
   "engines": {
     "vscode": "^1.63.0"
   },
-  "main": "./dist/extension",
+  "main": "./out/extension",
   "icon": "assets/images/logo.png",
   "contributors": [
     {
       "name": "Divyendu Singh",
       "url": "https://www.divyendusingh.com/"
+    },
+    {
+      "name": "Smekalka",
+      "url": "https://smekalka.com/"
     }
   ],
   "galleryBanner": {
@@ -67,12 +71,33 @@
           "description": "Show codelens to execute operations inline",
           "default": true
         },
+        "vscode-graphql-execution.useLegacySubscriptionsClient": {
+          "type": [
+            "boolean"
+          ],
+          "description": "Use legacy subscriptions client",
+          "default": true
+        },
         "vscode-graphql-execution.rejectUnauthorized": {
           "type": [
             "boolean"
           ],
           "description": "Fail the request on invalid certificate",
           "default": true
+        },
+        "vscode-graphql-execution.result.customCommand.id": {
+          "type": [
+            "string"
+          ],
+          "description": "A custom command to be invoked using a link at the top of the query result view",
+          "default": ""
+        },
+        "vscode-graphql-execution.result.customCommand.caption": {
+          "type": [
+            "string"
+          ],
+          "description": "Custom command link caption",
+          "default": ""
         }
       }
     }
@@ -84,6 +109,9 @@
   },
   "homepage": "https://github.com/graphql/graphiql/blob/main/packages/vscode-graphql-execution/README.md",
   "scripts": {
+    "vscode:prepublish": "npm run compile -- --minify",
+    "compile": "node esbuild",
+    "build-bundles": "npm run compile -- --sourcemap",
     "vsce:package": "vsce package --yarn",
     "vsce:prepublish": "npm run vsce:package",
     "vsce:publish": "vsce publish --yarn",
@@ -106,13 +134,32 @@
     "@urql/core": "2.6.1",
     "capitalize": "2.0.4",
     "dotenv": "10.0.0",
-    "graphql-config": "4.3.0",
+    "graphql-config": "4.3.6",
     "graphql-tag": "2.12.6",
     "graphql-ws": "5.10.0",
+    "@shopify/legacy-apollo-subscriptions-transport": "0.9.32",
     "@whatwg-node/fetch": "0.2.8",
     "ws": "8.8.1",
     "graphql": "16.6.0",
-    "nullthrows": "1.1.1"
+    "nullthrows": "1.1.1",
+    "ts-node": "^10.8.1",
+    "acorn": "^8.4.1",
+    "acorn-walk": "^8.1.1",
+    "arg": "^4.1.0",
+    "create-require": "^1.1.0",
+    "diff": "^4.0.1",
+    "make-error": "^1.1.1",
+    "v8-compile-cache-lib": "^3.0.1",
+    "yn": "3.1.1",
+    "typescript": "^4.6.3",
+    "tempfile": "^4.0.0",
+    "@cspotcode/source-map-support": "^0.8.0",
+    "@jridgewell/trace-mapping": "0.3.9",
+    "@tsconfig/node10": "^1.0.7",
+    "@tsconfig/node12": "^1.0.7",
+    "@tsconfig/node14": "^1.0.0",
+    "@tsconfig/node16": "^1.0.2",
+    "wonka": "4.0.15"
   },
   "resolutions": {
     "cosmiconfig": "^5.0.1"
@@ -122,6 +169,20 @@
       "graphql",
       "graphql-config",
       "dotenv",
+      "acorn",
+      "acorn-walk",
+      "arg",
+      "create-require",
+      "diff",
+      "make-error",
+      "v8-compile-cache-lib",
+      "yn",
+      "typescript",
+      "@tsconfig/**",
+      "@cspotcode/source-map-support",
+      "@jridgewell/**",
+      "ts-node",
+      "tslib",
       "graphql-ws",
       "graphql-tag",
       "@urql/core",

@@ -87,6 +87,7 @@ export function activate(context: ExtensionContext) {
         outputChannel,
         literal,
         panel,
+        config,
       );
       const registration = workspace.registerTextDocumentContentProvider(
         'graphql',
